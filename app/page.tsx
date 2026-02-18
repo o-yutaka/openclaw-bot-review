@@ -46,16 +46,18 @@ function PlatformBadge({ platform, agentId, gatewayPort, gatewayToken }: { platf
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition ${
+      title="点击打开聊天页面"
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all hover:scale-105 hover:shadow-md ${
         isFeishu
-          ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-          : "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+          ? "bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/40 hover:border-blue-400"
+          : "bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/40 hover:border-purple-400"
       }`}
     >
       {isFeishu ? "📱 飞书" : "🎮 Discord"}
       {platform.accountId && (
         <span className="opacity-60">({platform.accountId})</span>
       )}
+      <span className="opacity-50 text-[10px]">↗</span>
     </a>
   );
 }
