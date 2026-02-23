@@ -411,8 +411,53 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
-  // 首次加载
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // 首次加载 - 从 localStorage 恢复测试状态
+  useEffect(() => {
+    fetchData();
+    const savedTestResults = localStorage.getItem('agentTestResults');
+    if (savedTestResults) {
+      try {
+        setTestResults(JSON.parse(savedTestResults));
+      } catch (e) {
+        console.error('Failed to parse testResults from localStorage', e);
+      }
+    }
+    const savedPlatformTestResults = localStorage.getItem('platformTestResults');
+    if (savedPlatformTestResults) {
+      try {
+        setPlatformTestResults(JSON.parse(savedPlatformTestResults));
+      } catch (e) {
+        console.error('Failed to parse platformTestResults from localStorage', e);
+      }
+    }
+    const savedSessionTestResults = localStorage.getItem('sessionTestResults');
+    if (savedSessionTestResults) {
+      try {
+        setSessionTestResults(JSON.parse(savedSessionTestResults));
+      } catch (e) {
+        console.error('Failed to parse sessionTestResults from localStorage', e);
+      }
+    }
+  }, [fetchData]);
+
+  // 保存测试结果到 localStorage
+  useEffect(() => {
+    if (testResults) {
+      localStorage.setItem('agentTestResults', JSON.stringify(testResults));
+    }
+  }, [testResults]);
+
+  useEffect(() => {
+    if (platformTestResults) {
+      localStorage.setItem('platformTestResults', JSON.stringify(platformTestResults));
+    }
+  }, [platformTestResults]);
+
+  useEffect(() => {
+    if (sessionTestResults) {
+      localStorage.setItem('sessionTestResults', JSON.stringify(sessionTestResults));
+    }
+  }, [sessionTestResults]);
 
   const testAllAgents = useCallback(() => {
     setTesting(true);
