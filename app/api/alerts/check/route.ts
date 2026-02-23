@@ -112,18 +112,20 @@ function getFeishuDmUser(agentId: string): string | null {
   }
 }
 
-// 通过飞书 API 发送告警消息
+// 通过飞书 API 发送告警消息 (使用 main app 发送)
 async function sendAlertViaFeishu(agentId: string, message: string) {
   const openclawConfig = getOpenclawConfig();
   const feishuConfig = openclawConfig.channels?.feishu || {};
-  const bindings = openclawConfig.bindings || [];
+  const feishuAccounts = feishuConfig.accounts || {};
   
-  const account = getFeishuAccountForAgent(agentId, feishuConfig, bindings);
-  if (!account) {
-    console.log(`[ALERT] No Feishu account found for agent ${agentId}`);
-    return { sent: false, error: "No Feishu account" };
+  // 使用 main app 发送告警（因为用户的 open_id 是 main app 的）
+  const mainAccount = feishuAccounts["main"];
+  if (!mainAccount?.appId || !mainAccount?.appSecret) {
+    console.log(`[ALERT] No main Feishu account found`);
+    return { sent: false, error: "No main app" };
   }
   
+  // 从 receiveAgent 的 session 中获取用户的 open_id
   const testUserId = getFeishuDmUser(agentId);
   if (!testUserId) {
     console.log(`[ALERT] No Feishu DM user found for agent ${agentId}`);
@@ -137,7 +139,7 @@ async function sendAlertViaFeishu(agentId: string, message: string) {
     const tokenResp = await fetch(`${baseUrl}/open-apis/auth/v3/tenant_access_token/internal`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ app_id: account.appId, app_secret: account.appSecret }),
+      body: JSON.stringify({ app_id: mainAccount.appId, app_secret: mainAccount.appSecret }),
       signal: AbortSignal.timeout(10000),
     });
     
@@ -148,9 +150,12 @@ async function sendAlertViaFeishu(agentId: string, message: string) {
     
     const token = tokenData.tenant_access_token;
     
-    // 发送 DM
+    // 发送 DM - 使用 user_id_type 确保正确识别用户
     const now = new Date().toLocaleTimeString("zh-CN", { timeZone: "Asia/Shanghai" });
-    const msgResp = await fetch(`${baseUrl}/open-apis/im/v1/messages?receive_id_type=open_id`, {
+    
+    // 先尝试获取用户的 union_id 或 user_id
+    // 如果失败则使用 open_id
+    const msgResp = await fetch(`${baseUrl}/open-apis/im/v1/messages?receive_id_type=user_id`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -166,6 +171,31 @@ async function sendAlertViaFeishu(agentId: string, message: string) {
     
     const msgData = await msgResp.json();
     
+    // 如果 user_id 失败，尝试 open_id
+    if (msgData.code !== 0) {
+      const msgResp2 = await fetch(`${baseUrl}/open-apis/im/v1/messages?receive_id_type=open_id`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          receive_id: testUserId,
+          msg_type: "text",
+          content: JSON.stringify({ text: `🔔 告警通知\n${message}\n(${now})` }),
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      
+      const msgData2 = await msgResp2.json();
+      if (msgData2.code === 0) {
+        console.log(`[ALERT] Sent to ${agentId}: ${message}`);
+        return { sent: true, message };
+      } else {
+        return { sent: false, error: `Send failed: ${msgData2.msg}` };
+      }
+    }
+    
     if (msgData.code === 0) {
       console.log(`[ALERT] Sent to ${agentId}: ${message}`);
       return { sent: true, message };
@@ -177,31 +207,37 @@ async function sendAlertViaFeishu(agentId: string, message: string) {
   }
 }
 
-// 发送告警消息 (优先用飞书 API)
+// 发送告警消息 - 使用 OpenClaw Gateway API
 async function sendAlert(agentId: string, message: string) {
-  // 先尝试飞书 API
-  const feishuResult = await sendAlertViaFeishu(agentId, message);
-  if (feishuResult.sent) {
-    return feishuResult;
-  }
+  const openclawConfig = getOpenclawConfig();
+  const gatewayPort = openclawConfig.gateway?.port || 18789;
+  const gatewayToken = openclawConfig.gateway?.auth?.token || "";
   
-  // 失败则尝试 Gateway (作为备用)
-  console.log(`[ALERT] Feishu failed, trying Gateway for ${agentId}: ${message}`);
-  const gateway = getGatewayConfig();
+  // 使用 sessionKey 发送到正确的 agent
   const sessionKey = `agent:${agentId}:main`;
   
   try {
-    fetch(`http://127.0.0.1:${gateway.port}/v1/chat/completions`, {
+    // 使用 fire-and-forfetch 不等待响应
+    fetch(`http://127.0.0.1:${gatewayPort}/v1/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${gateway.token}`,
+        "Authorization": `Bearer ${gatewayToken}`,
+        "x-openclaw-agent-id": agentId,
       },
       body: JSON.stringify({
         session: sessionKey,
         messages: [{ role: "user", content: `🔔 告警通知: ${message}` }],
+        max_tokens: 64,
       }),
-    }).catch(() => {});
+    }).then(resp => {
+      if (resp.ok) {
+        console.log(`[ALERT] Sent to ${agentId}: ${message}`);
+      }
+    }).catch(err => {
+      console.error(`[ALERT] Error: ${err.message}`);
+    });
+    
     return { sent: true, message };
   } catch (err: any) {
     return { sent: false, error: err.message };
