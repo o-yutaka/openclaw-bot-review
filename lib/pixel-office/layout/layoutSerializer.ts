@@ -411,6 +411,7 @@ const INTERACTABLE_TYPES = new Set([
   FurnitureType.COOLER, FurnitureType.WATER_COOLER,
   FurnitureType.BOOKSHELF, FurnitureType.LIBRARY_GRAY_FULL,
   FurnitureType.WHITEBOARD, FurnitureType.FRIDGE,
+  FurnitureType.DECO_3,
 ])
 
 /** Get interaction points adjacent to interactable furniture */
@@ -446,6 +447,14 @@ export function getInteractionPoints(
       }
     }
   }
+
+  // Photograph interaction points — idle characters can stop to admire it (row 1, facing up)
+  for (let c = 12; c <= 16; c++) {
+    if (isWalkable(c, 1, tileMap, blockedTiles)) {
+      points.push({ col: c, row: 1, facingDir: Direction.UP, furnitureType: 'photograph' })
+    }
+  }
+
   return points
 }
 
