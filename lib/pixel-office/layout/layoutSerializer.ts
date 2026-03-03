@@ -170,7 +170,9 @@ export function layoutToSeats(furniture: PlacedFurniture[]): Map<string, Seat> {
         let facingDir: Direction = Direction.DOWN
         const roundedCol = Math.round(tileCol)
         const roundedRow = Math.round(tileRow)
-        if (entry.orientation) {
+        if (item.uid.startsWith('stool-r')) {
+          facingDir = Direction.LEFT
+        } else if (entry.orientation) {
           facingDir = orientationToFacing(entry.orientation)
         } else {
           for (const d of dirs) {
@@ -213,6 +215,37 @@ const DEFAULT_RIGHT_ROOM_COLOR: FloorColor = { h: 25, s: 45, b: 5, c: 10 }  // w
 const DEFAULT_CARPET_COLOR: FloorColor = { h: 280, s: 40, b: -5, c: 0 }     // purple
 const DEFAULT_DOORWAY_COLOR: FloorColor = { h: 35, s: 25, b: 10, c: 0 }     // tan
 const DEFAULT_LOUNGE_COLOR: FloorColor = { h: 200, s: 30, b: 10, c: 0 }     // cool blue
+
+const RIGHT_WALL_STOOLS: ReadonlyArray<PlacedFurniture> = [
+  // Right-office right wall: 2 vertical columns × 4 stools each
+  { uid: 'stool-r1', type: FurnitureType.BENCH, col: 19, row: 3 },
+  { uid: 'stool-r2', type: FurnitureType.BENCH, col: 19, row: 4.5 },
+  { uid: 'stool-r3', type: FurnitureType.BENCH, col: 19, row: 6 },
+  { uid: 'stool-r4', type: FurnitureType.BENCH, col: 19, row: 7.5 },
+  { uid: 'stool-r5', type: FurnitureType.BENCH, col: 17, row: 3 },
+  { uid: 'stool-r6', type: FurnitureType.BENCH, col: 17, row: 4.5 },
+  { uid: 'stool-r7', type: FurnitureType.BENCH, col: 17, row: 6 },
+  { uid: 'stool-r8', type: FurnitureType.BENCH, col: 17, row: 7.5 },
+]
+
+function shouldRemoveRightOfficeLegacyItems(item: PlacedFurniture): boolean {
+  if (item.uid.startsWith('stool-r')) return true
+  if (item.uid === 'plant-r1' || item.uid === 'lamp-r' || item.uid === 'cooler-r') return true
+  if (item.type === FurnitureType.PLANT && item.col === 19 && item.row === 3) return true
+  if (item.type === FurnitureType.LAMP && item.col === 19 && item.row === 7) return true
+  if (item.type === FurnitureType.COOLER && item.col === 18 && item.row === 7) return true
+  return false
+}
+
+function normalizeRightOfficeFurniture(furniture: PlacedFurniture[]): PlacedFurniture[] {
+  const base = furniture.filter((item) => !shouldRemoveRightOfficeLegacyItems(item))
+  const next = [...base]
+  for (const stool of RIGHT_WALL_STOOLS) {
+    const exists = next.some((item) => item.uid === stool.uid)
+    if (!exists) next.push({ ...stool })
+  }
+  return next
+}
 
 /** Create the default office layout — 21×17 multi-room office */
 export function createDefaultLayout(): OfficeLayout {
@@ -305,14 +338,12 @@ export function createDefaultLayout(): OfficeLayout {
     { uid: 'chair-r1-right', type: FurnitureType.CHAIR, col: 15, row: 3 },
     { uid: 'pc-r', type: FurnitureType.PC, col: 14, row: 2.75, rotation: 270 },
     { uid: 'camera-r', type: FurnitureType.CAMERA, col: 13.5, row: 3.5 },
-    { uid: 'plant-r1', type: FurnitureType.PLANT, col: 19, row: 3 },
     { uid: 'whiteboard-r', type: FurnitureType.WHITEBOARD, col: 15, row: 0 },
     { uid: 'library-r', type: FurnitureType.LIBRARY_GRAY_FULL, col: 17.5, row: -0.5 },
     { uid: 'clock-r', type: FurnitureType.CLOCK, col: 11, row: 0 },
-    { uid: 'lamp-r', type: FurnitureType.LAMP, col: 19, row: 7 },
+    ...RIGHT_WALL_STOOLS,
 
     // ── Right room meeting corner ──
-    { uid: 'cooler-r', type: FurnitureType.COOLER, col: 18, row: 7 },
     { uid: 'bench-r', type: FurnitureType.BENCH, col: 16, row: 9 },
 
     // ── Bottom lounge / break area ──
@@ -363,7 +394,12 @@ export function migrateLayoutColors(layout: OfficeLayout): OfficeLayout {
  */
 function migrateLayout(layout: OfficeLayout): OfficeLayout {
   if (layout.tileColors && layout.tileColors.length === layout.tiles.length) {
-    return layout // Already migrated
+    const furniture = normalizeRightOfficeFurniture(layout.furniture)
+    const furnitureChanged =
+      furniture.length !== layout.furniture.length ||
+      furniture.some((item, index) => item !== layout.furniture[index])
+    if (!furnitureChanged) return layout
+    return { ...layout, furniture }
   }
 
   // Check if any tiles use old values (1-4) — these map directly to FLOOR_1-4
@@ -392,7 +428,8 @@ function migrateLayout(layout: OfficeLayout): OfficeLayout {
     }
   }
 
-  return { ...layout, tileColors }
+  const furniture = normalizeRightOfficeFurniture(layout.furniture)
+  return { ...layout, tileColors, furniture }
 }
 
 // ── Interaction Points ──────────────────────────────────────────
