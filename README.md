@@ -50,7 +50,7 @@ cd OpenClaw-bot-review
 npm install
 
 # Start dev server
-npm run dev
+npm run start
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -72,7 +72,7 @@ By default, the dashboard reads config from `~/.openclaw/openclaw.json`. To use 
 
 ```bash
 OPENCLAW_HOME=/opt/openclaw 
-npm run dev
+npm run start
 ```
 
 ## Docker Deployment
@@ -146,7 +146,7 @@ cd OpenClaw-bot-review
 npm install
 
 # 启动开发服务器
-npm run dev
+npm run start
 ```
 
 浏览器打开 [http://localhost:3000](http://localhost:3000) 即可。
@@ -168,7 +168,7 @@ npm run dev
 
 ```bash
 OPENCLAW_HOME=/opt/openclaw 
-npm run dev
+npm run start
 ```
 
 ## 作者联系方式（contact）
